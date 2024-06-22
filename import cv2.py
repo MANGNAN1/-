@@ -1,98 +1,81 @@
-import cv2
 import pyautogui
+import cv2
 import numpy as np
-import os
-import keyboard  # keyboard 모듈 임포트
+import keyboard
 import time
-import pygetwindow as gw  # pygetwindow 모듈 임포트
+import pygetwindow as gw
 
-# 특정 창의 제목
-target_window_title = "祖큡aster Online"
+# PyAutoGUI 설정
+pyautogui.FAILSAFE = False
+pyautogui.PAUSE = 0.1
 
-# 특정 창에서 클릭할 좌표들 (창 내부 좌표)
-click_points = [
-    (1001, 179),
-    (772, 70)
-]
+# 이미지 파일 경로 설정
+image_path = '1.png'
 
-def find_and_press_keys(image_filename, target_window):
-    # 이미지 파일의 경로
-    image_path = os.path.join(os.path.dirname(__file__), image_filename)
+# 클릭할 좌표 설정 (절대 좌표)
+coordinates = [(1229, 215), (1455, 317), (1229, 215), (1455, 317), (1229, 215), (1455, 317)]  # 변경된 좌표
+
+# 특정 창 이름
+window_title = '祖큡aster Online'
+
+def click_coordinates(coordinates):
+    for coord in coordinates:
+        click_x, click_y = coord
+        pyautogui.click(click_x, click_y)
+        print(f'좌표 클릭: ({click_x}, {click_y})')
+        time.sleep(0.2)  # 클릭 사이 딜레이
+
+def find_and_click(image_path, coordinates):
+    # 스크린샷 찍기
+    screenshot = pyautogui.screenshot()
+    screenshot = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
     
-    # 템플릿 이미지 로드 (흑백으로 변환)
-    template = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+    # 이미지 파일 불러오기
+    template = cv2.imread(image_path, cv2.IMREAD_COLOR)
     if template is None:
-        raise FileNotFoundError(f"Cannot find image file: {image_path}")
+        print(f'이미지 파일을 찾을 수 없습니다: {image_path}')
+        return False
+    
+    # 이미지 서치
+    res = cv2.matchTemplate(screenshot, template, cv2.TM_CCOEFF_NORMED)
+    threshold = 0.8
+    loc = np.where(res >= threshold)
+    
+    if len(loc[0]) > 0:
+        print('이미지 찾음!')
+        click_coordinates(coordinates)  # coordinates를 전달
+        return True
+    else:
+        print('이미지 찾기 실패')
+        return False
 
-    w, h = template.shape[::-1]
-
-    print(f"스크립트를 시작합니다. 이미지 '{image_filename}'를 찾습니다.")
-
-    while True:
-        # 특정 창이 활성화되었는지 확인
-        if target_window.isActive:
-            # 창의 위치와 크기 얻기
-            window_rect = target_window._getWindowRect()
-            window_x, window_y, window_width, window_height = window_rect
-
-            # 이미지 검색을 위해 창 내부 영역 캡처
-            screenshot = pyautogui.screenshot(region=(window_x, window_y, window_width, window_height))
-            screenshot_cv = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2GRAY)  # RGB를 흑백으로 변환
-
-            # 화면에서 이미지 찾기
-            res = cv2.matchTemplate(screenshot_cv, template, cv2.TM_CCOEFF_NORMED)
-            threshold = 0.8
-            loc = np.where(res >= threshold)
-
-            # 이미지를 찾았을 때 동작
-            if len(loc[0]) > 0:
-                for pt in zip(*loc[::-1]):
-                    # 이미지의 중심을 클릭 포인트로 사용
-                    center_x = window_x + pt[0] + w // 2
-                    center_y = window_y + pt[1] + h // 2
-
-                    # 키 입력: 순서대로 1, F1, 3 입력 (간격 1초)
-                    pyautogui.typewrite(['1', 'f1', '3'], interval=1)
-
-                    print(f"이미지 '{image_filename}'를 찾았습니다. 키 입력을 완료했습니다.")
-
-                    # 클릭 좌표 순서대로 클릭
-                    perform_click_sequence(target_window)
-
-        # 페이지다운(PgDn) 버튼이 눌리면 스크립트 종료
-        if keyboard.is_pressed('pagedown'):
-            print("사용자에 의해 프로그램이 종료되었습니다.")
-            break
-
-def perform_click_sequence(target_window):
-    # 특정 창에서 클릭할 좌표들을 순서대로 클릭
-    if target_window.isActive:
-        window_rect = target_window._getWindowRect()
-        window_x, window_y, _, _ = window_rect
-        
-        for point in click_points:
-            click_x, click_y = point
-            pyautogui.click(window_x + click_x, window_y + click_y)
-            time.sleep(1)  # 클릭 후 잠시 대기
+def get_window(window_title):
+    windows = gw.getWindowsWithTitle(window_title)
+    if windows:
+        return windows[0]
+    else:
+        print(f'{window_title} 창을 찾을 수 없습니다.')
+        return None
 
 def main():
-    print(f"프로그램을 시작합니다. '{target_window_title}' 창에서만 동작합니다. F9를 누르면 이미지 검색을 시작합니다.")
-
-    # 특정 창 인식
-    target_window = gw.getWindowsWithTitle(target_window_title)
-    if len(target_window) == 0:
-        raise Exception(f"Could not find window with title '{target_window_title}'")
-    elif len(target_window) > 1:
-        raise Exception(f"Found multiple windows with title '{target_window_title}'")
-    else:
-        target_window = target_window[0]
-
+    print('프로그램 시작. F9 키를 누르면 작동합니다.')
+    
     while True:
-        if keyboard.is_pressed('f9'):
-            image_filename = "1.png"  # 검색할 이미지 파일명을 '1.png'로 설정
-            find_and_press_keys(image_filename, target_window)
-            print("이미지 검색이 완료되었습니다. F9를 다시 눌러 재시작할 수 있습니다.")
-            time.sleep(1)  # 잠시 대기 후 다시 시작할 수 있도록 함
+        # F9 키가 눌리면 루프 시작
+        if keyboard.is_pressed('F9'):
+            print('F9 키 입력됨, 이미지 서치 및 클릭 시작.')
+            while True:
+                if find_and_click(image_path, coordinates):
+                    time.sleep(2)  # 작업 후 대기 시간
+                else:
+                    time.sleep(1)  # 이미지 못 찾을 때 대기 시간
+                
+                # 프로그램 중지 (Page Down 키 누름) 체크
+                if keyboard.is_pressed('page down'):
+                    print('Page Down 키 입력됨, 프로그램 종료.')
+                    break
+            
+            break  # F9 루프 종료 후 프로그램 종료
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
